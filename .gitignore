@@ -1,0 +1,12 @@
+node_modules
+.next
+out
+build
+dist
+.env
+.env.local
+.env.*.local
+*.tsbuildinfo
+.DS_Store
+.netlify
+google-token.json
