@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import type { Settings, Feed } from "@/lib/settings";
-import { Trash2, Plus, MapPin, Globe, Rss, Check } from "lucide-react";
+import { Trash2, Plus, MapPin, Globe, Rss, Check, Sparkles, RotateCcw } from "lucide-react";
 
 type GeocodeResult = { name: string; country: string; admin1?: string; lat: number; lon: number; timezone: string };
 
@@ -124,6 +124,13 @@ export function SettingsForm({ initial }: { initial: Settings }) {
         </div>
       </div>
 
+      <PromptEditor
+        currentDay={s.aiPrompts.day}
+        currentWeek={s.aiPrompts.week}
+        currentNews={s.aiPrompts.news}
+        onSave={(prompts) => save({ ...s, aiPrompts: prompts })}
+      />
+
       <FeedsEditor
         title="Notizie locali"
         category="local"
@@ -238,6 +245,128 @@ function FeedsEditor({
             <Plus size={14} /> aggiungi
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+const PROMPT_HINTS = {
+  day: `Esempi:
+- "Sii diretto, niente convenevoli."
+- "Apri sempre con la cosa più importante."
+- "Suggerisci un ordine concreto delle attività con orari."
+- "Considera che alle 9 mi alleno: tienine conto."
+- "Includi sempre un'osservazione sul meteo se incide sui miei impegni."`,
+  week: `Esempi:
+- "Evidenzia i giorni più carichi e quelli più liberi."
+- "Quando vedi un viaggio, suggerisci cosa preparare in anticipo."
+- "Mantieni un tono motivante."`,
+  news: `Esempi:
+- "Privilegia notizie politica/economia, niente cronaca nera."
+- "Spiega il contesto, non solo i fatti."
+- "Massimo 3 notizie."
+- "Tono ironico e curioso."`,
+};
+
+function PromptEditor({
+  currentDay,
+  currentWeek,
+  currentNews,
+  onSave,
+}: {
+  currentDay: string;
+  currentWeek: string;
+  currentNews: string;
+  onSave: (p: { day: string; week: string; news: string }) => void;
+}) {
+  const [day, setDay] = useState(currentDay);
+  const [week, setWeek] = useState(currentWeek);
+  const [news, setNews] = useState(currentNews);
+  const [tab, setTab] = useState<"day" | "week" | "news">("day");
+
+  // sync local state when settings update from outside
+  useEffect(() => setDay(currentDay), [currentDay]);
+  useEffect(() => setWeek(currentWeek), [currentWeek]);
+  useEffect(() => setNews(currentNews), [currentNews]);
+
+  const value = tab === "day" ? day : tab === "week" ? week : news;
+  const setValue = (v: string) => {
+    if (tab === "day") setDay(v);
+    else if (tab === "week") setWeek(v);
+    else setNews(v);
+  };
+
+  const dirty =
+    day !== currentDay || week !== currentWeek || news !== currentNews;
+
+  function applyAll() {
+    onSave({ day: day.trim(), week: week.trim(), news: news.trim() });
+  }
+
+  function reset() {
+    if (tab === "day") setDay("");
+    else if (tab === "week") setWeek("");
+    else setNews("");
+  }
+
+  return (
+    <div className="card p-4">
+      <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+        <Sparkles size={16} className="text-accent" />
+        Istruzioni per l'AI
+      </div>
+      <p className="mb-3 text-xs text-muted">
+        Aggiungi indicazioni personali al prompt: tono, focus, vincoli, abitudini.
+        Vengono integrate alle istruzioni di base e l'AI continua a vedere tutti i tuoi dati
+        (calendario, promemoria, mail, meteo, traffico, notizie).
+      </p>
+
+      <div className="-mx-1 mb-3 flex gap-1">
+        {(["day", "week", "news"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`tap rounded-full px-3 py-1 text-xs font-medium transition ${
+              tab === t ? "bg-fg text-bg" : "bg-bg text-muted"
+            }`}
+          >
+            {t === "day" ? "Giornata" : t === "week" ? "Settimana" : "News"}
+          </button>
+        ))}
+      </div>
+
+      <textarea
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        rows={6}
+        placeholder={`Scrivi le tue istruzioni per la narrazione "${
+          tab === "day" ? "della giornata" : tab === "week" ? "della settimana" : "delle notizie"
+        }"…`}
+        className="w-full resize-none rounded-xl border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent"
+      />
+
+      <details className="mt-2">
+        <summary className="cursor-pointer text-xs text-muted">vedi esempi</summary>
+        <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-bg p-2 text-xs text-muted">
+          {PROMPT_HINTS[tab]}
+        </pre>
+      </details>
+
+      <div className="mt-3 flex items-center gap-2">
+        <button
+          onClick={applyAll}
+          disabled={!dirty}
+          className="tap inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-fg px-3 py-2 text-sm text-bg disabled:opacity-40"
+        >
+          <Check size={14} /> {dirty ? "Salva istruzioni" : "Nessuna modifica"}
+        </button>
+        <button
+          onClick={reset}
+          className="tap inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm text-muted hover:text-fg"
+          aria-label="Reset"
+        >
+          <RotateCcw size={14} /> svuota
+        </button>
       </div>
     </div>
   );

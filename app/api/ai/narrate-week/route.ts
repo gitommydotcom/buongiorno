@@ -17,8 +17,8 @@ export async function GET() {
     const end = addDays(start, 7);
 
     const [events, reminders] = await Promise.all([
-      fetchEvents(start, end).catch(() => []),
-      fetchReminders().catch(() => []),
+      fetchEvents(start, end, s.location.timezone).catch(() => []),
+      fetchReminders(s.location.timezone).catch(() => []),
     ]);
 
     const { system, user } = weekNarrationPrompt({
@@ -28,9 +28,10 @@ export async function GET() {
       timezone: s.location.timezone,
       events,
       reminders,
+      customPrompt: s.aiPrompts?.week,
     });
 
-    const inputHash = `${events.length}:${events.slice(0, 5).map((e) => e.uid).join("|")}:${reminders.length}`;
+    const inputHash = `${events.length}:${events.slice(0, 5).map((e) => e.uid).join("|")}:${reminders.length}:${(s.aiPrompts?.week ?? "").length}`;
     const text = await cached(`narration:week:${inputHash}`, 30 * 60, () => complete(system, user, { maxTokens: 500 }));
 
     return NextResponse.json({ text });

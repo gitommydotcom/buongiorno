@@ -15,8 +15,12 @@ export async function GET() {
       .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
       .slice(0, 10);
 
-    const { system, user } = newsNarrationPrompt({ language: s.language, items });
-    const inputHash = items.map((i) => i.title).join("|").slice(0, 300);
+    const { system, user } = newsNarrationPrompt({
+      language: s.language,
+      items,
+      customPrompt: s.aiPrompts?.news,
+    });
+    const inputHash = items.map((i) => i.title).join("|").slice(0, 300) + "::" + (s.aiPrompts?.news ?? "").length;
     const text = await cached(`narration:news:${inputHash}`, 30 * 60, () => complete(system, user, { maxTokens: 700 }));
 
     return NextResponse.json({ text, items });

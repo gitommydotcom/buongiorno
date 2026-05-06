@@ -11,6 +11,15 @@ const SYSTEMS: Record<Lang, string> = {
   en: "You are the personal assistant of a busy person. Speak naturally and warmly, like a thoughtful friend giving them the lay of the day. Avoid bullet lists - only flowing prose. No emoji. Don't restate raw data, interpret it. Max 5-7 sentences unless asked otherwise.",
 };
 
+function withCustom(base: string, custom: string | undefined, lang: Lang): string {
+  const trimmed = (custom ?? "").trim();
+  if (!trimmed) return base;
+  const header = lang === "it"
+    ? "\n\nIstruzioni personalizzate dell'utente (priorità assoluta sulle istruzioni di default qui sopra):\n"
+    : "\n\nUser's custom instructions (override the defaults above):\n";
+  return base + header + trimmed;
+}
+
 function fmtTime(iso: string, tz: string, locale: string) {
   return new Date(iso).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", timeZone: tz });
 }
@@ -28,8 +37,10 @@ export function dayNarrationPrompt(input: {
   weather: WeatherSnapshot | null;
   traffic: TrafficIncident[];
   importantMail: Mail[];
+  newsHeadlines?: { source: string; title: string }[];
+  customPrompt?: string;
 }): { system: string; user: string } {
-  const { language, userName, now, timezone, events, reminders, weather, traffic, importantMail } = input;
+  const { language, userName, now, timezone, events, reminders, weather, traffic, importantMail, newsHeadlines, customPrompt } = input;
   const locale = language === "it" ? "it-IT" : "en-US";
 
   const eventsLine = events.length
@@ -60,7 +71,11 @@ export function dayNarrationPrompt(input: {
     ? importantMail.slice(0, 5).map((m) => `- da ${m.from}: "${m.subject}"`).join("\n")
     : "(nessuna mail importante recente)";
 
-  const system = SYSTEMS[language];
+  const newsLine = newsHeadlines && newsHeadlines.length
+    ? newsHeadlines.slice(0, 6).map((n) => `- (${n.source}) ${n.title}`).join("\n")
+    : "(nessuna notizia rilevante)";
+
+  const system = withCustom(SYSTEMS[language], customPrompt, language);
   const user = `Sono ${userName}. Adesso è ${fmtDay(now.toISOString(), timezone, locale)} alle ${fmtTime(now.toISOString(), timezone, locale)}.
 
 Eventi del calendario di oggi:
@@ -75,11 +90,15 @@ Traffico locale: ${trafficLine}
 Mail recenti che potrebbero richiedere attenzione:
 ${mailLine}
 
-Fai un breve briefing della mia giornata in prosa scorrevole. Apri con un saluto adatto all'orario. Concentrati su:
-1) cosa ho davvero da fare oggi e in che ordine, segnalando eventuali sovrapposizioni o tempi stretti tra impegni in luoghi diversi;
-2) cosa potrebbe sfuggirmi (promemoria scaduti, mail urgenti, conflitti, meteo che impatta un evento);
-3) un consiglio pratico per la giornata.
-Sii naturale, non elenchi né bullet, niente emoji.`;
+Notizie del momento (locali, nazionali, globali):
+${newsLine}
+
+Considera TUTTI i dati qui sopra (calendario, promemoria, meteo, traffico, mail, notizie) e fammi un briefing personale della giornata. Apri con un saluto adatto all'orario. Idealmente:
+- cosa ho davvero da fare oggi e in che ordine, segnalando sovrapposizioni o tempi stretti tra impegni in luoghi diversi;
+- cosa potrebbe sfuggirmi (promemoria scaduti, mail urgenti, conflitti, meteo che impatta un evento, traffico che potrebbe rallentarmi);
+- se rilevante, un cenno alle notizie del momento che potrebbero interessarmi o impattare la mia giornata;
+- un consiglio pratico finale.
+Prosa scorrevole, niente elenchi né bullet, niente emoji.`;
 
   return { system, user };
 }
@@ -87,14 +106,16 @@ Sii naturale, non elenchi né bullet, niente emoji.`;
 export function newsNarrationPrompt(input: {
   language: Lang;
   items: NewsItem[];
+  customPrompt?: string;
 }): { system: string; user: string } {
   const top = input.items.slice(0, 8);
   const list = top
     .map((n, i) => `${i + 1}. [${n.category}] (${n.source}) ${n.title} — ${n.summary.slice(0, 200)}`)
     .join("\n");
-  const system = input.language === "it"
+  const baseSystem = input.language === "it"
     ? "Sei un amico curioso e informato che ti aggiorna sulle notizie del momento mentre prendi il caffè. Parli in italiano, conversazionale, intelligente, mai sensazionalista. Mai sport. Niente bullet, niente emoji. Commenti brevemente le notizie mettendo in relazione gli eventi quando ha senso. Massimo 8 frasi."
     : "You are a curious, well-informed friend giving the morning news rundown over coffee. Conversational, smart, never sensational. No sports. No bullets, no emoji. Briefly comment and connect events. Max 8 sentences.";
+  const system = withCustom(baseSystem, input.customPrompt, input.language);
   const user = `Ecco le notizie principali del momento (locali, italiane, globali):\n\n${list}\n\nFammi un riassunto narrato come se me lo stessi raccontando tu, scegliendo le 4-6 notizie davvero importanti tra queste e collegandole con un filo narrativo. Niente sport. Non riassumere notizia per notizia in modo meccanico.`;
   return { system, user };
 }
@@ -106,6 +127,7 @@ export function weekNarrationPrompt(input: {
   timezone: string;
   events: CalEvent[];
   reminders: Reminder[];
+  customPrompt?: string;
 }): { system: string; user: string } {
   const locale = input.language === "it" ? "it-IT" : "en-US";
   const byDay = new Map<string, CalEvent[]>();
@@ -124,7 +146,7 @@ export function weekNarrationPrompt(input: {
     .map((r) => `- ${r.title}${r.due ? ` (entro ${new Date(r.due).toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short", timeZone: input.timezone })})` : ""}`)
     .join("\n") || "(nessuna scadenza imminente)";
 
-  const system = SYSTEMS[input.language];
+  const system = withCustom(SYSTEMS[input.language], input.customPrompt, input.language);
   const user = `Sono ${input.userName}. Sguardo sulla settimana che ho davanti.
 
 Eventi:

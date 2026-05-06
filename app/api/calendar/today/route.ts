@@ -11,7 +11,7 @@ export async function GET() {
     const now = new Date();
     const start = startOfDay(now, s.location.timezone);
     const end = addDays(start, 1);
-    const events = await fetchEvents(start, end);
+    const events = await fetchEvents(start, end, s.location.timezone);
     return NextResponse.json({ events });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message, events: [] }, { status: 500 });

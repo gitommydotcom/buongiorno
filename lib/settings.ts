@@ -21,6 +21,13 @@ export const SettingsSchema = z.object({
     italy: z.array(FeedSchema),
     global: z.array(FeedSchema),
   }),
+  aiPrompts: z
+    .object({
+      day: z.string().default(""),
+      week: z.string().default(""),
+      news: z.string().default(""),
+    })
+    .default({ day: "", week: "", news: "" }),
 });
 
 export type Settings = z.infer<typeof SettingsSchema>;
@@ -57,6 +64,7 @@ const DEFAULT_SETTINGS: Settings = {
       { name: "Le Monde", url: "https://www.lemonde.fr/rss/une.xml" },
     ],
   },
+  aiPrompts: { day: "", week: "", news: "" },
 };
 
 function isNetlify() {
