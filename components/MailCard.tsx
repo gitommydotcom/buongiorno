@@ -21,8 +21,14 @@ export function MailCard() {
   if (loading) return <div className="card animate-pulse p-4 text-sm text-muted">Carico mail…</div>;
   if (error) {
     return (
-      <div className="card p-4 text-sm text-muted">
-        Gmail non collegato. <a className="text-accent underline" href="/api/gmail/auth">Collega ora</a>.
+      <div className="card p-4 text-sm">
+        <div className="text-fg">Gmail non collegato.</div>
+        <div className="mt-1 text-xs text-danger break-words">{error}</div>
+        <div className="mt-2 text-xs text-muted">
+          Verifica <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>, <code>GOOGLE_REDIRECT_URI</code> e <code>GOOGLE_REFRESH_TOKEN</code>.
+          Su Netlify ricordati di fare un re-deploy dopo aver aggiunto le variabili.
+          {" "}<a className="text-accent underline" href="/api/gmail/auth">Riprova OAuth</a>.
+        </div>
       </div>
     );
   }

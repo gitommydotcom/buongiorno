@@ -50,65 +50,81 @@ export function NewsCard() {
   const items = data[tab];
 
   return (
-    <div className="space-y-2">
-      <div className="card p-4">
-        <div className="mb-3 flex items-center gap-2">
-          <Newspaper size={16} className="text-muted" />
-          <h3 className="text-sm font-semibold">News</h3>
-          <button
-            onClick={loadNarration}
-            className="tap ml-auto inline-flex items-center gap-1 rounded-full bg-bg px-3 py-1 text-xs text-fg hover:text-accent"
-          >
-            <Sparkles size={12} />
-            {showNarr ? "nascondi" : "ascolta riassunto"}
-            <ChevronDown size={12} className={`transition ${showNarr ? "rotate-180" : ""}`} />
-          </button>
-        </div>
-
-        {showNarr && (
-          <div className="mb-3 rounded-2xl bg-bg p-3">
-            {narrLoading && <p className="text-sm text-muted">L'AI sta leggendo i giornali per te…</p>}
-            {!narrLoading && narration && <p className="narration text-base">{narration}</p>}
-          </div>
-        )}
-
-        <div className="-mx-1 mb-3 flex gap-1">
-          {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`tap rounded-full px-3 py-1 text-xs font-medium transition ${
-                tab === t ? "bg-fg text-bg" : "bg-bg text-muted"
-              }`}
-            >
-              {TAB_LABEL[t]} · {data[t].length}
-            </button>
-          ))}
-        </div>
-
-        <ul className="space-y-2">
-          {items.slice(0, 8).map((n) => (
-            <li key={n.link}>
-              <a
-                href={n.link}
-                target="_blank"
-                rel="noreferrer"
-                className="tap block rounded-xl p-2 -mx-2 hover:bg-bg"
-              >
-                <div className="text-sm font-medium leading-snug">{n.title}</div>
-                <div className="mt-1 flex items-center gap-2 text-xs text-muted">
-                  <span>{n.source}</span>
-                  <span>·</span>
-                  <span>{relTime(n.publishedAt)}</span>
-                </div>
-              </a>
-            </li>
-          ))}
-          {items.length === 0 && (
-            <li className="text-sm text-muted">Nessuna notizia in questa categoria. Controlla i feed in /impostazioni.</li>
-          )}
-        </ul>
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 px-1">
+        <Newspaper size={16} className="text-muted" />
+        <h3 className="text-sm font-semibold">News</h3>
+        <button
+          onClick={loadNarration}
+          className="tap glass-chip ml-auto inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs"
+        >
+          <Sparkles size={12} />
+          {showNarr ? "nascondi" : "ascolta riassunto"}
+          <ChevronDown size={12} className={`transition ${showNarr ? "rotate-180" : ""}`} />
+        </button>
       </div>
+
+      {showNarr && (
+        <div className="card p-3">
+          {narrLoading && <p className="text-sm text-muted">L&apos;AI sta leggendo i giornali per te…</p>}
+          {!narrLoading && narration && <p className="narration text-base">{narration}</p>}
+        </div>
+      )}
+
+      <div className="-mx-1 flex gap-1 px-1">
+        {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`tap rounded-full px-3 py-1 text-xs font-medium transition ${
+              tab === t ? "bg-fg text-bg" : "glass-chip"
+            }`}
+          >
+            {TAB_LABEL[t]} · {data[t].length}
+          </button>
+        ))}
+      </div>
+
+      {items.length === 0 ? (
+        <div className="card p-4 text-sm text-muted">Nessuna notizia in questa categoria. Controlla i feed in /impostazioni.</div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {items.slice(0, 9).map((n) => (
+            <a
+              key={n.link}
+              href={n.link}
+              target="_blank"
+              rel="noreferrer"
+              className="tap card group flex flex-col overflow-hidden"
+            >
+              <div className="relative aspect-[16/10] w-full overflow-hidden bg-bg">
+                {n.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={n.image}
+                    alt=""
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                    className="h-full w-full object-cover transition group-hover:scale-105"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display = "none";
+                    }}
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-muted">
+                    <Newspaper size={28} />
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-1 flex-col gap-1 p-3">
+                <div className="text-[11px] uppercase tracking-wider text-muted">{n.source}</div>
+                <div className="text-sm font-medium leading-snug line-clamp-3">{n.title}</div>
+                <div className="mt-auto pt-1 text-[11px] text-muted">{relTime(n.publishedAt)}</div>
+              </div>
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

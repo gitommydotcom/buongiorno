@@ -13,6 +13,14 @@
   --danger: 192 71 64;
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-serif: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+
+  /* Liquid glass — light */
+  --glass-tint: 255 255 255;
+  --glass-tint-alpha: 0.42;
+  --glass-stroke: 255 255 255;
+  --glass-stroke-alpha: 0.55;
+  --glass-shadow: 30 20 10;
+  --glass-shadow-alpha: 0.18;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -25,11 +33,17 @@
     --accent: 232 152 96;
     --warn: 232 178 88;
     --danger: 232 110 100;
+
+    --glass-tint: 32 28 24;
+    --glass-tint-alpha: 0.48;
+    --glass-stroke: 255 240 220;
+    --glass-stroke-alpha: 0.16;
+    --glass-shadow: 0 0 0;
+    --glass-shadow-alpha: 0.55;
   }
 }
 
 html, body {
-  background-color: rgb(var(--bg));
   color: rgb(var(--fg));
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -37,13 +51,42 @@ html, body {
 }
 
 body {
-  /* Account for iOS safe areas */
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
+  background: rgb(var(--bg));
+  position: relative;
+  min-height: 100vh;
+  overflow-x: hidden;
 }
 
-* {
-  box-sizing: border-box;
+* { box-sizing: border-box; }
+
+/* Colorful gradient background that the glass refracts */
+.liquid-bg {
+  position: fixed;
+  inset: -10%;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse 60% 50% at 15% 10%, rgba(255, 168, 92, 0.55), transparent 60%),
+    radial-gradient(ellipse 50% 60% at 90% 20%, rgba(120, 168, 255, 0.45), transparent 60%),
+    radial-gradient(ellipse 70% 50% at 80% 95%, rgba(220, 110, 180, 0.45), transparent 60%),
+    radial-gradient(ellipse 60% 60% at 10% 95%, rgba(120, 220, 180, 0.45), transparent 60%),
+    rgb(var(--bg));
+  filter: saturate(125%);
+  animation: liquidShift 24s ease-in-out infinite alternate;
+}
+
+@keyframes liquidShift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(-3%, 2%, 0) scale(1.05); }
+}
+
+/* SVG container — kept off-canvas but rendered so the filter is available */
+.liquid-svg {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
 }
 
 @layer utilities {
@@ -53,17 +96,66 @@ body {
     line-height: 1.65;
     letter-spacing: 0.005em;
   }
+
+  /* Liquid Glass */
   .card {
-    background-color: rgb(var(--surface));
-    border: 1px solid rgb(var(--border));
-    border-radius: 1rem;
+    position: relative;
+    background-color: rgb(var(--glass-tint) / var(--glass-tint-alpha));
+    border: 1px solid rgb(var(--glass-stroke) / var(--glass-stroke-alpha));
+    border-radius: 1.25rem;
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.55),
+      inset 0 -1px 0 rgb(255 255 255 / 0.10),
+      inset 0 0 0 1px rgb(255 255 255 / 0.06),
+      0 10px 30px rgb(var(--glass-shadow) / var(--glass-shadow-alpha));
+    isolation: isolate;
   }
+
+  /* Refractive layer — uses the SVG displacement filter on a backdrop snapshot */
+  @supports (backdrop-filter: url(#liquid-glass)) {
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      backdrop-filter: url(#liquid-glass);
+      -webkit-backdrop-filter: url(#liquid-glass);
+      pointer-events: none;
+      z-index: -1;
+    }
+  }
+
+  /* Specular highlight along the top edge */
+  .card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.35) 0%, rgb(255 255 255 / 0) 30%),
+      linear-gradient(0deg, rgb(255 255 255 / 0.10) 0%, rgb(255 255 255 / 0) 25%);
+    pointer-events: none;
+    mix-blend-mode: overlay;
+  }
+
+  .glass-chip {
+    background-color: rgb(var(--glass-tint) / 0.55);
+    border: 1px solid rgb(var(--glass-stroke) / 0.55);
+    backdrop-filter: blur(12px) saturate(170%);
+    -webkit-backdrop-filter: blur(12px) saturate(170%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.55),
+      0 4px 14px rgb(var(--glass-shadow) / 0.12);
+    color: rgb(var(--fg));
+  }
+
   .tap {
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
   }
 }
 
-/* Hide scrollbars on horizontal scrollers */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

@@ -11,6 +11,7 @@ export type NewsItem = {
   link: string;
   publishedAt: string; // ISO
   summary: string;
+  image?: string;
 };
 
 const SPORT_TERMS = [
@@ -20,10 +21,34 @@ const SPORT_TERMS = [
   "atalanta", "bologna ", "udinese", "torino ", "salernitana", "monza ",
 ];
 
-const parser: Parser = new Parser({
+const parser: Parser<unknown, { "media:content"?: { $?: { url?: string } }; "media:thumbnail"?: { $?: { url?: string } }; image?: string }> = new Parser({
   timeout: 8000,
   headers: { "User-Agent": "Mozilla/5.0 BuongiornoBot/1.0" },
+  customFields: {
+    item: [
+      ["media:content", "media:content", { keepArray: false }],
+      ["media:thumbnail", "media:thumbnail", { keepArray: false }],
+      ["enclosure", "enclosure"],
+      ["image", "image"],
+    ],
+  },
 });
+
+function extractImage(item: Record<string, unknown>): string | undefined {
+  const enc = item.enclosure as { url?: string; type?: string } | undefined;
+  if (enc?.url && (!enc.type || enc.type.startsWith("image"))) return enc.url;
+  const mc = item["media:content"] as { $?: { url?: string }; url?: string } | undefined;
+  if (mc?.$?.url) return mc.$.url;
+  if (typeof mc === "object" && mc && "url" in mc && typeof mc.url === "string") return mc.url;
+  const mt = item["media:thumbnail"] as { $?: { url?: string }; url?: string } | undefined;
+  if (mt?.$?.url) return mt.$.url;
+  if (typeof mt === "object" && mt && "url" in mt && typeof mt.url === "string") return mt.url;
+  if (typeof item.image === "string") return item.image;
+  const html = (item["content:encoded"] as string | undefined) ?? (item.content as string | undefined) ?? "";
+  const m = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+  if (m) return m[1];
+  return undefined;
+}
 
 function isSport(item: { title?: string; categories?: string[]; link?: string }): boolean {
   const haystack = [
@@ -62,6 +87,7 @@ async function fetchFeed(feed: Feed, category: NewsCategory): Promise<NewsItem[]
         link: it.link ?? "",
         publishedAt: it.isoDate ?? it.pubDate ?? new Date().toISOString(),
         summary: (it.contentSnippet ?? it.content ?? "").slice(0, 300),
+        image: extractImage(it as unknown as Record<string, unknown>),
       }))
       .filter((it) => it.link);
   } catch {
