@@ -14,21 +14,33 @@ export type Mail = {
   labels: string[];
 };
 
+function envClean(name: string): string | undefined {
+  const v = process.env[name];
+  if (!v) return undefined;
+  // Strip surrounding quotes/whitespace that frequently sneak in from copy-paste
+  return v.trim().replace(/^['"]|['"]$/g, "");
+}
+
 export function buildOAuthClient() {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const redirectUri = process.env.GOOGLE_REDIRECT_URI;
-  if (!clientId || !clientSecret || !redirectUri) {
-    throw new Error("GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REDIRECT_URI mancanti");
+  const clientId = envClean("GOOGLE_CLIENT_ID");
+  const clientSecret = envClean("GOOGLE_CLIENT_SECRET");
+  const redirectUri = envClean("GOOGLE_REDIRECT_URI");
+  const missing = [
+    !clientId && "GOOGLE_CLIENT_ID",
+    !clientSecret && "GOOGLE_CLIENT_SECRET",
+    !redirectUri && "GOOGLE_REDIRECT_URI",
+  ].filter(Boolean);
+  if (missing.length) {
+    throw new Error(`Variabili mancanti: ${missing.join(", ")}`);
   }
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
 function gmailClient() {
   const oauth = buildOAuthClient();
-  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
+  const refreshToken = envClean("GOOGLE_REFRESH_TOKEN");
   if (!refreshToken) {
-    throw new Error("GOOGLE_REFRESH_TOKEN non configurato. Esegui `npm run google-token`.");
+    throw new Error("GOOGLE_REFRESH_TOKEN non configurato. Vai su /api/gmail/auth e completa l'OAuth.");
   }
   oauth.setCredentials({ refresh_token: refreshToken });
   return google.gmail({ version: "v1", auth: oauth });
