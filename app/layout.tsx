@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { BottomNav } from "@/components/BottomNav";
+import { SplashLoader } from "@/components/SplashLoader";
 
 export const metadata: Metadata = {
   title: "Buongiorno",
@@ -41,6 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </filter>
           </defs>
         </svg>
+        <SplashLoader />
         <main className="mx-auto w-full max-w-2xl px-4 pb-28 pt-6">{children}</main>
         <BottomNav />
       </body>

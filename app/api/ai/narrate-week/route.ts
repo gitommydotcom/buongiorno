@@ -29,9 +29,10 @@ export async function GET() {
       events,
       reminders,
       customPrompt: s.aiPrompts?.week,
+      systemPromptOverride: s.aiSystemPrompts?.week,
     });
 
-    const inputHash = `${events.length}:${events.slice(0, 5).map((e) => e.uid).join("|")}:${reminders.length}:${(s.aiPrompts?.week ?? "").length}`;
+    const inputHash = `${events.length}:${events.slice(0, 5).map((e) => e.uid).join("|")}:${reminders.length}:${(s.aiPrompts?.week ?? "").length}:${(s.aiSystemPrompts?.week ?? "").length}`;
     const text = await cached(`narration:week:${inputHash}`, 30 * 60, () => complete(system, user, { maxTokens: 500 }));
 
     return NextResponse.json({ text });

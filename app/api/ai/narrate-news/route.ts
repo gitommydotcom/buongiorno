@@ -19,8 +19,9 @@ export async function GET() {
       language: s.language,
       items,
       customPrompt: s.aiPrompts?.news,
+      systemPromptOverride: s.aiSystemPrompts?.news,
     });
-    const inputHash = items.map((i) => i.title).join("|").slice(0, 300) + "::" + (s.aiPrompts?.news ?? "").length;
+    const inputHash = items.map((i) => i.title).join("|").slice(0, 300) + "::" + (s.aiPrompts?.news ?? "").length + "::" + (s.aiSystemPrompts?.news ?? "").length;
     const text = await cached(`narration:news:${inputHash}`, 30 * 60, () => complete(system, user, { maxTokens: 700 }));
 
     return NextResponse.json({ text, items });

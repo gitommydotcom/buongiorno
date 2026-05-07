@@ -49,6 +49,7 @@ export async function GET() {
       importantMail,
       newsHeadlines,
       customPrompt: s.aiPrompts?.day,
+      systemPromptOverride: s.aiSystemPrompts?.day,
     });
 
     const inputHash = JSON.stringify({
@@ -60,6 +61,7 @@ export async function GET() {
       n: newsHeadlines.map((h) => h.title).slice(0, 5).join("|"),
       d: start.toISOString(),
       p: s.aiPrompts?.day ?? "",
+      sp: s.aiSystemPrompts?.day ?? "",
     });
     const text = await cached(`narration:day:${inputHash}`, 10 * 60, () => complete(system, user, { maxTokens: 700 }));
 

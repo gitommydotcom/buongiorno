@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { getStore } from "@netlify/blobs";
 import { cached } from "./cache";
 
 export type Mail = {
@@ -17,8 +18,36 @@ export type Mail = {
 function envClean(name: string): string | undefined {
   const v = process.env[name];
   if (!v) return undefined;
-  // Strip surrounding quotes/whitespace that frequently sneak in from copy-paste
   return v.trim().replace(/^['"]|['"]$/g, "");
+}
+
+function isNetlify() {
+  return Boolean(process.env.NETLIFY || process.env.NETLIFY_BLOBS_CONTEXT);
+}
+
+async function loadRefreshToken(): Promise<string | undefined> {
+  // 1. Env var (fastest, works everywhere)
+  const fromEnv = envClean("GOOGLE_REFRESH_TOKEN");
+  if (fromEnv) return fromEnv;
+  // 2. Netlify Blobs (saved automatically after OAuth callback)
+  if (isNetlify()) {
+    try {
+      const store = getStore({ name: "buongiorno", consistency: "strong" });
+      const t = await store.get("gmail-refresh-token");
+      if (t) return t;
+    } catch {
+      // ignore
+    }
+  }
+  return undefined;
+}
+
+export async function saveRefreshToken(token: string): Promise<void> {
+  if (isNetlify()) {
+    const store = getStore({ name: "buongiorno", consistency: "strong" });
+    await store.set("gmail-refresh-token", token);
+  }
+  // On local dev the user adds it to .env.local manually
 }
 
 export function buildOAuthClient() {
@@ -36,11 +65,11 @@ export function buildOAuthClient() {
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
-function gmailClient() {
+async function gmailClient() {
   const oauth = buildOAuthClient();
-  const refreshToken = envClean("GOOGLE_REFRESH_TOKEN");
+  const refreshToken = await loadRefreshToken();
   if (!refreshToken) {
-    throw new Error("GOOGLE_REFRESH_TOKEN non configurato. Vai su /api/gmail/auth e completa l'OAuth.");
+    throw new Error("Gmail non collegato. Vai su /api/gmail/auth per completare l'OAuth.");
   }
   oauth.setCredentials({ refresh_token: refreshToken });
   return google.gmail({ version: "v1", auth: oauth });
@@ -54,7 +83,7 @@ function header(headers: { name?: string | null; value?: string | null }[] | und
 
 export async function fetchInbox(limit = 20): Promise<Mail[]> {
   return cached(`gmail:inbox:${limit}`, 5 * 60, async () => {
-    const gmail = gmailClient();
+    const gmail = await gmailClient();
     const list = await gmail.users.messages.list({
       userId: "me",
       maxResults: limit,

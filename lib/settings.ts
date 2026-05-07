@@ -28,6 +28,14 @@ export const SettingsSchema = z.object({
       news: z.string().default(""),
     })
     .default({ day: "", week: "", news: "" }),
+  // Full system prompt overrides — if set, replaces the built-in default entirely
+  aiSystemPrompts: z
+    .object({
+      day: z.string().default(""),
+      week: z.string().default(""),
+      news: z.string().default(""),
+    })
+    .default({ day: "", week: "", news: "" }),
 });
 
 export type Settings = z.infer<typeof SettingsSchema>;
@@ -65,6 +73,7 @@ const DEFAULT_SETTINGS: Settings = {
     ],
   },
   aiPrompts: { day: "", week: "", news: "" },
+  aiSystemPrompts: { day: "", week: "", news: "" },
 };
 
 function isNetlify() {
