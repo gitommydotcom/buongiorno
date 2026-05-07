@@ -26,8 +26,13 @@ export const SettingsSchema = z.object({
       day: z.string().default(""),
       week: z.string().default(""),
       news: z.string().default(""),
+      mail: z.string().default(""),
+      baseDay: z.string().default(""),
+      baseWeek: z.string().default(""),
+      baseNews: z.string().default(""),
+      baseMail: z.string().default(""),
     })
-    .default({ day: "", week: "", news: "" }),
+    .default({ day: "", week: "", news: "", mail: "", baseDay: "", baseWeek: "", baseNews: "", baseMail: "" }),
 });
 
 export type Settings = z.infer<typeof SettingsSchema>;
@@ -47,24 +52,22 @@ const DEFAULT_SETTINGS: Settings = {
   feeds: {
     local: [
       { name: "Il Centro", url: "https://www.ilcentro.it/rss/home.xml" },
-      { name: "Virtù Quotidiane", url: "https://www.virtuquotidiane.it/feed" },
       { name: "Rete8", url: "https://www.rete8.it/feed/" },
     ],
     italy: [
       { name: "ANSA Top", url: "https://www.ansa.it/sito/ansait_rss.xml" },
       { name: "Repubblica Home", url: "https://www.repubblica.it/rss/homepage/rss2.0.xml" },
-      { name: "Corriere Home", url: "https://xml2.corriereobjects.it/rss/homepage.xml" },
       { name: "Il Post", url: "https://www.ilpost.it/feed/" },
-      { name: "Il Sole 24 Ore", url: "https://www.ilsole24ore.com/rss/italia.xml" },
+      { name: "Sole 24 Ore", url: "https://www.ilsole24ore.com/rss/italia.xml" },
     ],
     global: [
       { name: "BBC World", url: "https://feeds.bbci.co.uk/news/world/rss.xml" },
-      { name: "Reuters World", url: "https://feeds.reuters.com/Reuters/worldNews" },
+      { name: "The Guardian World", url: "https://www.theguardian.com/world/rss" },
       { name: "Al Jazeera", url: "https://www.aljazeera.com/xml/rss/all.xml" },
       { name: "Le Monde", url: "https://www.lemonde.fr/rss/une.xml" },
     ],
   },
-  aiPrompts: { day: "", week: "", news: "" },
+  aiPrompts: { day: "", week: "", news: "", mail: "", baseDay: "", baseWeek: "", baseNews: "", baseMail: "" },
 };
 
 function isNetlify() {
@@ -91,8 +94,8 @@ export async function getSettings(): Promise<Settings> {
       const store = getStore({ name: "buongiorno", consistency: "strong" });
       const raw = await store.get(KEY);
       if (raw) return SettingsSchema.parse(JSON.parse(raw));
-    } catch {
-      // fall through to defaults
+    } catch (err) {
+      console.error("[settings] read failed:", (err as Error).message);
     }
   } else {
     const local = await readLocal();

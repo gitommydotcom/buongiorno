@@ -3,7 +3,7 @@ import { Section } from "@/components/Section";
 import { Timeline } from "@/components/Timeline";
 import { RemindersCard } from "@/components/RemindersCard";
 import { NewsCard } from "@/components/NewsCard";
-import { MailCard } from "@/components/MailCard";
+import { MailSummary } from "@/components/MailSummary";
 import { DayHeader } from "@/components/DayHeader";
 import { getSettings } from "@/lib/settings";
 
@@ -26,8 +26,8 @@ export default async function TodayPage() {
         <RemindersCard />
       </Section>
 
-      <Section title="Mail importanti">
-        <MailCard />
+      <Section title="Mail">
+        <MailSummary />
       </Section>
 
       <Section title="Notizie">

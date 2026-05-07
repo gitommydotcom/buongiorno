@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Sparkles, RefreshCw } from "lucide-react";
+import { Sparkles, RefreshCw, Loader2 } from "lucide-react";
 
 export function Hero() {
   const [text, setText] = useState<string>("");
@@ -37,11 +37,12 @@ export function Hero() {
             onClick={() => load(true)}
             className="tap ml-auto rounded-full p-1 text-muted hover:text-fg"
             aria-label="Rigenera"
+            disabled={loading}
           >
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
-        {loading && !text && <Skeleton lines={5} />}
+        {loading && !text && <HeroLoader />}
         {error && (
           <p className="text-sm text-danger">
             {error}. Controlla che <code>GROQ_API_KEY</code>, <code>ICLOUD_*</code> e <code>GOOGLE_*</code> siano configurati.
@@ -53,12 +54,20 @@ export function Hero() {
   );
 }
 
-function Skeleton({ lines }: { lines: number }) {
+function HeroLoader() {
   return (
-    <div className="space-y-2">
-      {Array.from({ length: lines }).map((_, i) => (
-        <div key={i} className="h-3 animate-pulse rounded bg-border" style={{ width: `${70 + Math.random() * 30}%` }} />
-      ))}
+    <div className="flex min-h-[180px] flex-col gap-4">
+      <div className="flex items-center gap-2.5 text-sm text-fg">
+        <Loader2 size={18} className="animate-spin text-accent" />
+        <span className="font-medium">Sto preparando la tua giornata…</span>
+      </div>
+      <div className="space-y-2.5">
+        <div className="h-3 w-[92%] animate-pulse rounded-full bg-fg/15" />
+        <div className="h-3 w-[78%] animate-pulse rounded-full bg-fg/15 [animation-delay:120ms]" />
+        <div className="h-3 w-[88%] animate-pulse rounded-full bg-fg/15 [animation-delay:240ms]" />
+        <div className="h-3 w-[64%] animate-pulse rounded-full bg-fg/15 [animation-delay:360ms]" />
+        <div className="h-3 w-[82%] animate-pulse rounded-full bg-fg/15 [animation-delay:480ms]" />
+      </div>
     </div>
   );
 }

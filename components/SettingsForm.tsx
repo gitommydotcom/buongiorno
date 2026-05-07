@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Settings, Feed } from "@/lib/settings";
-import { Trash2, Plus, MapPin, Globe, Rss, Check, Sparkles, RotateCcw } from "lucide-react";
+import { Trash2, Plus, MapPin, Globe, Rss, Check, Sparkles, RotateCcw, AlertTriangle } from "lucide-react";
 
 type GeocodeResult = { name: string; country: string; admin1?: string; lat: number; lon: number; timezone: string };
 
@@ -9,9 +9,15 @@ export function SettingsForm({ initial }: { initial: Settings }) {
   const [s, setS] = useState<Settings>(initial);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<GeocodeResult[]>([]);
   const [geoLoading, setGeoLoading] = useState(false);
+
+  const sRef = useRef(s);
+  useEffect(() => {
+    sRef.current = s;
+  }, [s]);
 
   // debounce geocode
   useEffect(() => {
@@ -29,47 +35,64 @@ export function SettingsForm({ initial }: { initial: Settings }) {
     return () => clearTimeout(t);
   }, [query]);
 
-  async function save(next: Settings) {
+  // Optimistic update: write state immediately, then PUT. Avoids stale-closure
+  // races when the user mutates settings rapidly (e.g. add two feeds in a row).
+  async function commit(updater: (prev: Settings) => Settings) {
+    const next = updater(sRef.current);
+    sRef.current = next;
+    setS(next);
     setSaving(true);
+    setSaveError(null);
     try {
       const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(next),
       });
-      if (res.ok) {
-        setSavedAt(Date.now());
-        setS(next);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Errore ${res.status}`);
       }
+      setSavedAt(Date.now());
+    } catch (e) {
+      setSaveError((e as Error).message);
     } finally {
       setSaving(false);
     }
   }
 
   function pickPlace(g: GeocodeResult) {
-    const next: Settings = {
-      ...s,
+    commit((prev) => ({
+      ...prev,
       location: {
         name: [g.name, g.admin1, g.country].filter(Boolean).join(", "),
         lat: g.lat,
         lon: g.lon,
         timezone: g.timezone,
       },
-    };
-    save(next);
+    }));
     setQuery("");
     setResults([]);
   }
 
   function setLanguage(lang: "it" | "en") {
-    save({ ...s, language: lang });
+    commit((prev) => ({ ...prev, language: lang }));
   }
 
   function addFeed(category: "local" | "italy" | "global", feed: Feed) {
-    save({ ...s, feeds: { ...s.feeds, [category]: [...s.feeds[category], feed] } });
+    commit((prev) => ({
+      ...prev,
+      feeds: { ...prev.feeds, [category]: [...prev.feeds[category], feed] },
+    }));
   }
   function removeFeed(category: "local" | "italy" | "global", url: string) {
-    save({ ...s, feeds: { ...s.feeds, [category]: s.feeds[category].filter((f) => f.url !== url) } });
+    commit((prev) => ({
+      ...prev,
+      feeds: {
+        ...prev.feeds,
+        [category]: prev.feeds[category].filter((f) => f.url !== url),
+      },
+    }));
   }
 
   const justSaved = useMemo(() => savedAt && Date.now() - savedAt < 2000, [savedAt]);
@@ -125,10 +148,8 @@ export function SettingsForm({ initial }: { initial: Settings }) {
       </div>
 
       <PromptEditor
-        currentDay={s.aiPrompts.day}
-        currentWeek={s.aiPrompts.week}
-        currentNews={s.aiPrompts.news}
-        onSave={(prompts) => save({ ...s, aiPrompts: prompts })}
+        prompts={s.aiPrompts}
+        onSave={(prompts) => commit((prev) => ({ ...prev, aiPrompts: prompts }))}
       />
 
       <FeedsEditor
@@ -157,8 +178,19 @@ export function SettingsForm({ initial }: { initial: Settings }) {
         Le notizie sportive vengono filtrate automaticamente da titoli, categorie e URL.
       </p>
 
-      <div className="fixed bottom-20 left-1/2 -translate-x-1/2">
-        {(saving || justSaved) && (
+      <div className="pointer-events-none fixed inset-x-0 bottom-24 z-40 flex justify-center px-4">
+        {saveError ? (
+          <div className="pointer-events-auto flex max-w-full items-start gap-2 rounded-2xl bg-danger/95 px-4 py-2 text-xs text-bg shadow-lg">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            <span className="break-words">Errore: {saveError}</span>
+            <button
+              onClick={() => setSaveError(null)}
+              className="ml-2 rounded-full bg-bg/15 px-2 py-0.5 text-[11px]"
+            >
+              chiudi
+            </button>
+          </div>
+        ) : (saving || justSaved) ? (
           <div className="flex items-center gap-2 rounded-full bg-fg px-4 py-2 text-xs text-bg shadow-lg">
             {saving ? "Salvo…" : (
               <>
@@ -166,7 +198,7 @@ export function SettingsForm({ initial }: { initial: Settings }) {
               </>
             )}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
@@ -187,12 +219,19 @@ function FeedsEditor({
 }) {
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
+  const [urlError, setUrlError] = useState<string | null>(null);
 
   function add() {
-    if (!name.trim() || !url.trim()) return;
+    setUrlError(null);
+    if (!name.trim() || !url.trim()) {
+      setUrlError("Compila nome e URL");
+      return;
+    }
     try {
-      new URL(url);
+      const u = new URL(url.trim());
+      if (!/^https?:$/.test(u.protocol)) throw new Error("URL non valido");
     } catch {
+      setUrlError("URL non valido");
       return;
     }
     onAdd({ name: name.trim(), url: url.trim() });
@@ -245,110 +284,163 @@ function FeedsEditor({
             <Plus size={14} /> aggiungi
           </button>
         </div>
+        {urlError && <p className="text-xs text-danger">{urlError}</p>}
       </div>
     </div>
   );
 }
 
-const PROMPT_HINTS = {
+const ADD_HINTS = {
   day: `Esempi:
 - "Sii diretto, niente convenevoli."
 - "Apri sempre con la cosa più importante."
-- "Suggerisci un ordine concreto delle attività con orari."
-- "Considera che alle 9 mi alleno: tienine conto."
-- "Includi sempre un'osservazione sul meteo se incide sui miei impegni."`,
+- "Considera che alle 9 mi alleno: tienine conto."`,
   week: `Esempi:
 - "Evidenzia i giorni più carichi e quelli più liberi."
-- "Quando vedi un viaggio, suggerisci cosa preparare in anticipo."
-- "Mantieni un tono motivante."`,
+- "Quando vedi un viaggio, suggerisci cosa preparare."`,
   news: `Esempi:
-- "Privilegia notizie politica/economia, niente cronaca nera."
-- "Spiega il contesto, non solo i fatti."
+- "Privilegia politica/economia, niente cronaca nera."
 - "Massimo 3 notizie."
 - "Tono ironico e curioso."`,
+  mail: `Esempi:
+- "Considera urgente solo ciò che richiede risposta entro oggi."
+- "Tratta le mail di lavoro come prioritarie rispetto alle personali."`,
+};
+
+const BASE_HINTS = {
+  day:
+    'Sostituisci interamente le istruzioni di sistema. Esempio: "Sei un capo di stato maggiore. Frasi brevi, stile militare. Massimo 4 frasi, niente convenevoli."',
+  week:
+    'Sostituisci interamente le istruzioni per la settimana. Esempio: "Parla come un coach. Sguardo strategico, tono motivante."',
+  news:
+    'Sostituisci le istruzioni del riassunto news. Esempio: "Sei un analista geopolitico. Tono asciutto, contestualizza ogni notizia con un dato."',
+  mail:
+    'Sostituisci le istruzioni del riassunto mail. Esempio: "Sei una segretaria pignola. Restituisci solo il formato Markdown richiesto."',
+};
+
+type PromptKey = "day" | "week" | "news" | "mail";
+
+const PROMPT_LABELS: Record<PromptKey, string> = {
+  day: "Giornata",
+  week: "Settimana",
+  news: "News",
+  mail: "Mail",
+};
+
+type PromptsState = {
+  day: string;
+  week: string;
+  news: string;
+  mail: string;
+  baseDay: string;
+  baseWeek: string;
+  baseNews: string;
+  baseMail: string;
 };
 
 function PromptEditor({
-  currentDay,
-  currentWeek,
-  currentNews,
+  prompts,
   onSave,
 }: {
-  currentDay: string;
-  currentWeek: string;
-  currentNews: string;
-  onSave: (p: { day: string; week: string; news: string }) => void;
+  prompts: PromptsState;
+  onSave: (p: PromptsState) => void;
 }) {
-  const [day, setDay] = useState(currentDay);
-  const [week, setWeek] = useState(currentWeek);
-  const [news, setNews] = useState(currentNews);
-  const [tab, setTab] = useState<"day" | "week" | "news">("day");
+  const [local, setLocal] = useState<PromptsState>(prompts);
+  const [tab, setTab] = useState<PromptKey>("day");
+  const [mode, setMode] = useState<"add" | "base">("add");
 
-  // sync local state when settings update from outside
-  useEffect(() => setDay(currentDay), [currentDay]);
-  useEffect(() => setWeek(currentWeek), [currentWeek]);
-  useEffect(() => setNews(currentNews), [currentNews]);
+  useEffect(() => setLocal(prompts), [prompts]);
 
-  const value = tab === "day" ? day : tab === "week" ? week : news;
-  const setValue = (v: string) => {
-    if (tab === "day") setDay(v);
-    else if (tab === "week") setWeek(v);
-    else setNews(v);
-  };
+  const baseKey = ("base" + tab[0].toUpperCase() + tab.slice(1)) as keyof PromptsState;
+  const addKey = tab as keyof PromptsState;
+  const activeKey = mode === "base" ? baseKey : addKey;
+  const value = local[activeKey];
 
-  const dirty =
-    day !== currentDay || week !== currentWeek || news !== currentNews;
-
-  function applyAll() {
-    onSave({ day: day.trim(), week: week.trim(), news: news.trim() });
+  function setValue(v: string) {
+    setLocal((prev) => ({ ...prev, [activeKey]: v }));
   }
 
-  function reset() {
-    if (tab === "day") setDay("");
-    else if (tab === "week") setWeek("");
-    else setNews("");
+  const dirty = (Object.keys(local) as (keyof PromptsState)[]).some((k) => local[k] !== prompts[k]);
+
+  function applyAll() {
+    onSave({
+      day: local.day.trim(),
+      week: local.week.trim(),
+      news: local.news.trim(),
+      mail: local.mail.trim(),
+      baseDay: local.baseDay.trim(),
+      baseWeek: local.baseWeek.trim(),
+      baseNews: local.baseNews.trim(),
+      baseMail: local.baseMail.trim(),
+    });
+  }
+
+  function clearActive() {
+    setValue("");
   }
 
   return (
     <div className="card p-4">
       <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
         <Sparkles size={16} className="text-accent" />
-        Istruzioni per l'AI
+        Istruzioni per l&apos;AI
       </div>
       <p className="mb-3 text-xs text-muted">
-        Aggiungi indicazioni personali al prompt: tono, focus, vincoli, abitudini.
-        Vengono integrate alle istruzioni di base e l'AI continua a vedere tutti i tuoi dati
-        (calendario, promemoria, mail, meteo, traffico, notizie).
+        Personalizza come l&apos;AI ti racconta giornata, settimana, news e mail.
+        L&apos;AI continua a vedere tutti i tuoi dati: cambi solo tono, focus e formato.
       </p>
 
-      <div className="-mx-1 mb-3 flex gap-1">
-        {(["day", "week", "news"] as const).map((t) => (
+      <div className="-mx-1 mb-3 flex flex-wrap gap-1">
+        {(Object.keys(PROMPT_LABELS) as PromptKey[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`tap rounded-full px-3 py-1 text-xs font-medium transition ${
+            className={`tap rounded-full px-3 py-1.5 text-xs font-medium transition ${
               tab === t ? "bg-fg text-bg" : "bg-bg text-muted"
             }`}
           >
-            {t === "day" ? "Giornata" : t === "week" ? "Settimana" : "News"}
+            {PROMPT_LABELS[t]}
           </button>
         ))}
       </div>
 
+      <div className="mb-3 inline-flex rounded-full border border-border bg-bg p-0.5 text-xs">
+        <button
+          onClick={() => setMode("add")}
+          className={`tap rounded-full px-3 py-1 ${mode === "add" ? "bg-fg text-bg" : "text-muted"}`}
+        >
+          aggiungi istruzioni
+        </button>
+        <button
+          onClick={() => setMode("base")}
+          className={`tap rounded-full px-3 py-1 ${mode === "base" ? "bg-fg text-bg" : "text-muted"}`}
+        >
+          prompt di base
+        </button>
+      </div>
+
+      <p className="mb-2 text-[11px] text-muted">
+        {mode === "add"
+          ? "Le tue istruzioni vengono aggiunte al prompt di default e hanno priorità."
+          : "Sostituisci interamente il prompt di sistema di default. Lascia vuoto per usare il default."}
+      </p>
+
       <textarea
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        rows={6}
-        placeholder={`Scrivi le tue istruzioni per la narrazione "${
-          tab === "day" ? "della giornata" : tab === "week" ? "della settimana" : "delle notizie"
-        }"…`}
+        rows={mode === "base" ? 8 : 6}
+        placeholder={
+          mode === "base"
+            ? `Prompt di base per la sezione "${PROMPT_LABELS[tab]}"…`
+            : `Istruzioni aggiuntive per la sezione "${PROMPT_LABELS[tab]}"…`
+        }
         className="w-full resize-none rounded-xl border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent"
       />
 
       <details className="mt-2">
         <summary className="cursor-pointer text-xs text-muted">vedi esempi</summary>
         <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-bg p-2 text-xs text-muted">
-          {PROMPT_HINTS[tab]}
+          {mode === "base" ? BASE_HINTS[tab] : ADD_HINTS[tab]}
         </pre>
       </details>
 
@@ -361,9 +453,9 @@ function PromptEditor({
           <Check size={14} /> {dirty ? "Salva istruzioni" : "Nessuna modifica"}
         </button>
         <button
-          onClick={reset}
+          onClick={clearActive}
           className="tap inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm text-muted hover:text-fg"
-          aria-label="Reset"
+          aria-label="Svuota"
         >
           <RotateCcw size={14} /> svuota
         </button>

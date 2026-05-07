@@ -41,7 +41,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </filter>
           </defs>
         </svg>
-        <main className="mx-auto w-full max-w-2xl px-4 pb-28 pt-6">{children}</main>
+        <main
+          className="mx-auto w-full max-w-2xl px-4 pt-6"
+          style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 96px)" }}
+        >
+          {children}
+        </main>
         <BottomNav />
       </body>
     </html>
