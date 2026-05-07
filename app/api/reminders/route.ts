@@ -8,7 +8,11 @@ export async function GET() {
   try {
     const s = await getSettings();
     const reminders = await fetchReminders(s.location.timezone);
-    return NextResponse.json({ reminders });
+    return NextResponse.json({ reminders }, {
+      headers: {
+        "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
+      },
+    });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message, reminders: [] }, { status: 500 });
   }

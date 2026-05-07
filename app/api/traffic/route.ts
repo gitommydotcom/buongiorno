@@ -8,7 +8,11 @@ export async function GET() {
   try {
     const s = await getSettings();
     const incidents = await fetchTraffic(s.location.lat, s.location.lon);
-    return NextResponse.json({ incidents });
+    return NextResponse.json({ incidents }, {
+      headers: {
+        "Cache-Control": "public, max-age=120, s-maxage=300, stale-while-revalidate=600",
+      },
+    });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message, incidents: [] }, { status: 500 });
   }

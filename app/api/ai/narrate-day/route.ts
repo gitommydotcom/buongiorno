@@ -19,14 +19,15 @@ export async function GET() {
     const end = addDays(start, 1);
 
     // Per-source timeouts so the slowest integration can't block the whole brief.
-    // Total worst case ≈ 6s before AI starts streaming.
+    // Total worst case ≈ 3s before AI starts streaming. Cache (in narrate
+    // sub-libraries + lib/cache) coprirà i miss dopo il primo warm-up.
     const [events, reminders, weather, traffic, mail, news] = await Promise.all([
-      withTimeout(fetchEvents(start, end, s.location.timezone), 6000, []),
-      withTimeout(fetchReminders(s.location.timezone), 6000, []),
-      withTimeout(fetchWeather(s.location.lat, s.location.lon, s.location.name, s.location.timezone), 4000, null),
-      withTimeout(fetchTraffic(s.location.lat, s.location.lon), 3000, []),
-      withTimeout(fetchInbox(20), 4000, []),
-      withTimeout(fetchNews(s.feeds), 5000, { local: [], italy: [], global: [] }),
+      withTimeout(fetchEvents(start, end, s.location.timezone), 3000, []),
+      withTimeout(fetchReminders(s.location.timezone), 3000, []),
+      withTimeout(fetchWeather(s.location.lat, s.location.lon, s.location.name, s.location.timezone), 2500, null),
+      withTimeout(fetchTraffic(s.location.lat, s.location.lon), 2000, []),
+      withTimeout(fetchInbox(20), 2500, []),
+      withTimeout(fetchNews(s.feeds), 3000, { local: [], italy: [], global: [] }),
     ]);
 
     const importantMail = mail.filter((m) => m.important || m.starred || m.unread).slice(0, 6);

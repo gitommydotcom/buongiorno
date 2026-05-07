@@ -5,13 +5,8 @@ import { RemindersCard } from "@/components/RemindersCard";
 import { NewsCard } from "@/components/NewsCard";
 import { MailSummary } from "@/components/MailSummary";
 import { DayHeader } from "@/components/DayHeader";
-import { getSettings } from "@/lib/settings";
 
-export const dynamic = "force-dynamic";
-
-export default async function TodayPage() {
-  const settings = await getSettings();
-
+export default function TodayPage() {
   return (
     <div className="space-y-6">
       <DayHeader />
@@ -19,7 +14,7 @@ export default async function TodayPage() {
       <Hero />
 
       <Section title="La tua giornata">
-        <Timeline timezone={settings.location.timezone} />
+        <Timeline />
       </Section>
 
       <Section title="Da ricordare">

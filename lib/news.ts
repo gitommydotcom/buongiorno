@@ -22,7 +22,7 @@ const SPORT_TERMS = [
 ];
 
 const parser: Parser<unknown, { "media:content"?: { $?: { url?: string } }; "media:thumbnail"?: { $?: { url?: string } }; image?: string }> = new Parser({
-  timeout: 4000,
+  timeout: 6000,
   headers: { "User-Agent": "Mozilla/5.0 BuongiornoBot/1.0" },
   customFields: {
     item: [
@@ -73,9 +73,11 @@ function dedupe(items: NewsItem[]): NewsItem[] {
   return [...byKey.values()];
 }
 
-// Interleave items so every source gets at least one slot before any source gets
-// a second. Inside each source, items with an image come first, then by date.
-// Result: the user always sees a mix of testate, with photos floating to the top.
+// Round-robin: ogni testata ha uno slot prima che qualcuno ne abbia un secondo.
+// Inoltre applichiamo un cap per fonte: anche se una testata ha pubblicato
+// molto più delle altre, non deve dominare la pagina. Il cap viene calcolato
+// in base al numero di testate con almeno un articolo, in modo da garantire
+// sempre un mix visibile.
 function interleaveBySource(items: NewsItem[], maxItems: number): NewsItem[] {
   const bySource = new Map<string, NewsItem[]>();
   for (const it of items) {
@@ -91,13 +93,21 @@ function interleaveBySource(items: NewsItem[], maxItems: number): NewsItem[] {
     });
   }
   const sources = [...bySource.keys()];
+  if (sources.length === 0) return [];
+  // Cap morbido: ~ceil(maxItems/numSources) ma minimo 2 per non penalizzare
+  // troppo le testate quando ce ne sono molte. Garantisce diversità senza
+  // svuotare la pagina quando solo poche fonti rispondono.
+  const perSourceCap = Math.max(2, Math.ceil(maxItems / sources.length));
+  const taken = new Map<string, number>();
   const out: NewsItem[] = [];
   while (out.length < maxItems) {
     let progressed = false;
     for (const src of sources) {
+      if ((taken.get(src) ?? 0) >= perSourceCap) continue;
       const arr = bySource.get(src)!;
       if (arr.length > 0) {
         out.push(arr.shift()!);
+        taken.set(src, (taken.get(src) ?? 0) + 1);
         progressed = true;
         if (out.length >= maxItems) break;
       }
@@ -108,25 +118,29 @@ function interleaveBySource(items: NewsItem[], maxItems: number): NewsItem[] {
 }
 
 async function fetchFeed(feed: Feed, category: NewsCategory): Promise<NewsItem[]> {
-  try {
-    const parsed = await parser.parseURL(feed.url);
-    const items = parsed.items ?? [];
-    return items
-      .filter((it) => !isSport({ title: it.title, categories: it.categories, link: it.link }))
-      .slice(0, 15)
-      .map<NewsItem>((it) => ({
-        category,
-        source: feed.name,
-        title: it.title?.trim() ?? "(senza titolo)",
-        link: it.link ?? "",
-        publishedAt: it.isoDate ?? it.pubDate ?? new Date().toISOString(),
-        summary: (it.contentSnippet ?? it.content ?? "").slice(0, 300),
-        image: extractImage(it as unknown as Record<string, unknown>),
-      }))
-      .filter((it) => it.link);
-  } catch {
-    return [];
-  }
+  // Cache per-feed: anche se un altro feed nello stesso group fallisce, le
+  // notizie di questo restano calde. TTL lungo per resistere ai cold start.
+  return cached(`feed:${feed.url}`, 60 * 60, async () => {
+    try {
+      const parsed = await parser.parseURL(feed.url);
+      const items = parsed.items ?? [];
+      return items
+        .filter((it) => !isSport({ title: it.title, categories: it.categories, link: it.link }))
+        .slice(0, 15)
+        .map<NewsItem>((it) => ({
+          category,
+          source: feed.name,
+          title: it.title?.trim() ?? "(senza titolo)",
+          link: it.link ?? "",
+          publishedAt: it.isoDate ?? it.pubDate ?? new Date().toISOString(),
+          summary: (it.contentSnippet ?? it.content ?? "").slice(0, 300),
+          image: extractImage(it as unknown as Record<string, unknown>),
+        }))
+        .filter((it) => it.link);
+    } catch {
+      return [];
+    }
+  });
 }
 
 async function fetchAllOf(feeds: Feed[], category: NewsCategory): Promise<NewsItem[]> {
