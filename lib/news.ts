@@ -22,7 +22,7 @@ const SPORT_TERMS = [
 ];
 
 const parser: Parser<unknown, { "media:content"?: { $?: { url?: string } }; "media:thumbnail"?: { $?: { url?: string } }; image?: string }> = new Parser({
-  timeout: 8000,
+  timeout: 4000,
   headers: { "User-Agent": "Mozilla/5.0 BuongiornoBot/1.0" },
   customFields: {
     item: [
@@ -73,6 +73,40 @@ function dedupe(items: NewsItem[]): NewsItem[] {
   return [...byKey.values()];
 }
 
+// Interleave items so every source gets at least one slot before any source gets
+// a second. Inside each source, items with an image come first, then by date.
+// Result: the user always sees a mix of testate, with photos floating to the top.
+function interleaveBySource(items: NewsItem[], maxItems: number): NewsItem[] {
+  const bySource = new Map<string, NewsItem[]>();
+  for (const it of items) {
+    if (!bySource.has(it.source)) bySource.set(it.source, []);
+    bySource.get(it.source)!.push(it);
+  }
+  for (const arr of bySource.values()) {
+    arr.sort((a, b) => {
+      const aImg = a.image ? 0 : 1;
+      const bImg = b.image ? 0 : 1;
+      if (aImg !== bImg) return aImg - bImg;
+      return b.publishedAt.localeCompare(a.publishedAt);
+    });
+  }
+  const sources = [...bySource.keys()];
+  const out: NewsItem[] = [];
+  while (out.length < maxItems) {
+    let progressed = false;
+    for (const src of sources) {
+      const arr = bySource.get(src)!;
+      if (arr.length > 0) {
+        out.push(arr.shift()!);
+        progressed = true;
+        if (out.length >= maxItems) break;
+      }
+    }
+    if (!progressed) break;
+  }
+  return out;
+}
+
 async function fetchFeed(feed: Feed, category: NewsCategory): Promise<NewsItem[]> {
   try {
     const parsed = await parser.parseURL(feed.url);
@@ -95,6 +129,11 @@ async function fetchFeed(feed: Feed, category: NewsCategory): Promise<NewsItem[]
   }
 }
 
+async function fetchAllOf(feeds: Feed[], category: NewsCategory): Promise<NewsItem[]> {
+  const results = await Promise.allSettled(feeds.map((f) => fetchFeed(f, category)));
+  return results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
+}
+
 export async function fetchNews(feeds: {
   local: Feed[];
   italy: Feed[];
@@ -103,15 +142,14 @@ export async function fetchNews(feeds: {
   const cacheKey = `news:${JSON.stringify(feeds)}`;
   return cached(cacheKey, 30 * 60, async () => {
     const [local, italy, global] = await Promise.all([
-      Promise.all(feeds.local.map((f) => fetchFeed(f, "local"))).then((arrs) => arrs.flat()),
-      Promise.all(feeds.italy.map((f) => fetchFeed(f, "italy"))).then((arrs) => arrs.flat()),
-      Promise.all(feeds.global.map((f) => fetchFeed(f, "global"))).then((arrs) => arrs.flat()),
+      fetchAllOf(feeds.local, "local"),
+      fetchAllOf(feeds.italy, "italy"),
+      fetchAllOf(feeds.global, "global"),
     ]);
-    const sortByDate = (a: NewsItem, b: NewsItem) => b.publishedAt.localeCompare(a.publishedAt);
     return {
-      local: dedupe(local).sort(sortByDate).slice(0, 12),
-      italy: dedupe(italy).sort(sortByDate).slice(0, 12),
-      global: dedupe(global).sort(sortByDate).slice(0, 12),
+      local: interleaveBySource(dedupe(local), 12),
+      italy: interleaveBySource(dedupe(italy), 12),
+      global: interleaveBySource(dedupe(global), 12),
     };
   });
 }

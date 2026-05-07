@@ -32,6 +32,21 @@ export function fmtDate(iso: string, timezone: string, locale = "it-IT") {
   });
 }
 
+export function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise<T>((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), ms);
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch(() => {
+        clearTimeout(timer);
+        resolve(fallback);
+      });
+  });
+}
+
 export function relativeTime(iso: string, locale = "it-IT") {
   const diff = (new Date(iso).getTime() - Date.now()) / 1000;
   const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });

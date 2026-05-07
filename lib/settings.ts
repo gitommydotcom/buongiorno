@@ -24,15 +24,13 @@ export const SettingsSchema = z.object({
   aiPrompts: z
     .object({
       day: z.string().default(""),
-      week: z.string().default(""),
       news: z.string().default(""),
       mail: z.string().default(""),
       baseDay: z.string().default(""),
-      baseWeek: z.string().default(""),
       baseNews: z.string().default(""),
       baseMail: z.string().default(""),
     })
-    .default({ day: "", week: "", news: "", mail: "", baseDay: "", baseWeek: "", baseNews: "", baseMail: "" }),
+    .default({ day: "", news: "", mail: "", baseDay: "", baseNews: "", baseMail: "" }),
 });
 
 export type Settings = z.infer<typeof SettingsSchema>;
@@ -67,7 +65,7 @@ const DEFAULT_SETTINGS: Settings = {
       { name: "Le Monde", url: "https://www.lemonde.fr/rss/une.xml" },
     ],
   },
-  aiPrompts: { day: "", week: "", news: "", mail: "", baseDay: "", baseWeek: "", baseNews: "", baseMail: "" },
+  aiPrompts: { day: "", news: "", mail: "", baseDay: "", baseNews: "", baseMail: "" },
 };
 
 function isNetlify() {

@@ -1,12 +1,11 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Sun, Calendar, Settings } from "lucide-react";
+import { Sun, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
   { href: "/", label: "Oggi", icon: Sun },
-  { href: "/settimana", label: "Settimana", icon: Calendar },
   { href: "/impostazioni", label: "Impostazioni", icon: Settings },
 ];
 

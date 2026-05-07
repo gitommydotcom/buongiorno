@@ -127,46 +127,6 @@ export function newsNarrationPrompt(input: {
   return { system, user };
 }
 
-export function weekNarrationPrompt(input: {
-  language: Lang;
-  userName: string;
-  now: Date;
-  timezone: string;
-  events: CalEvent[];
-  reminders: Reminder[];
-  customPrompt?: string;
-  basePrompt?: string;
-}): { system: string; user: string } {
-  const locale = input.language === "it" ? "it-IT" : "en-US";
-  const byDay = new Map<string, CalEvent[]>();
-  for (const e of input.events) {
-    const d = new Date(e.start).toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long", timeZone: input.timezone });
-    if (!byDay.has(d)) byDay.set(d, []);
-    byDay.get(d)!.push(e);
-  }
-  const lines = [...byDay.entries()].map(([d, evs]) =>
-    `${d}: ${evs.map((e) => `${fmtTime(e.start, input.timezone, locale)} ${e.title}`).join(" • ")}`,
-  ).join("\n");
-
-  const dueSoon = input.reminders
-    .filter((r) => r.due && new Date(r.due).getTime() < input.now.getTime() + 7 * 24 * 3600 * 1000)
-    .slice(0, 10)
-    .map((r) => `- ${r.title}${r.due ? ` (entro ${new Date(r.due).toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short", timeZone: input.timezone })})` : ""}`)
-    .join("\n") || "(nessuna scadenza imminente)";
-
-  const system = withCustom(pickBase(SYSTEMS[input.language], input.basePrompt), input.customPrompt, input.language);
-  const user = `Sono ${input.userName}. Sguardo sulla settimana che ho davanti.
-
-Eventi:
-${lines || "(nessun evento)"}
-
-Promemoria con scadenza nei prossimi 7 giorni:
-${dueSoon}
-
-Fammi un breve riepilogo della settimana: i giorni più carichi, gli appuntamenti chiave da preparare, le scadenze da non dimenticare. Prosa scorrevole, niente elenchi né emoji, massimo 6 frasi.`;
-  return { system, user };
-}
-
 export function mailSummaryPrompt(input: {
   language: Lang;
   mail: Mail[];
@@ -179,7 +139,7 @@ export function mailSummaryPrompt(input: {
         .slice(0, 25)
         .map(
           (m, i) =>
-            `${i + 1}. da: ${m.from} | oggetto: "${m.subject}" | snippet: ${m.snippet.slice(0, 220)} | flag: ${[
+            `${i + 1}. da: ${m.from} | oggetto: "${m.subject}" | snippet: ${m.snippet.slice(0, 200)} | flag: ${[
               m.unread ? "non-letta" : "",
               m.important ? "importante" : "",
               m.starred ? "stellata" : "",
@@ -192,55 +152,23 @@ export function mailSummaryPrompt(input: {
 
   const defaultBase =
     lang === "it"
-      ? "Sei un assistente che aiuta a gestire l'inbox. Tono pratico, senza fronzoli. Italiano. Niente emoji."
-      : "You are an inbox assistant. Practical tone, no fluff. English. No emoji.";
+      ? "Sei un assistente che fa il punto sull'inbox in poche frasi. Italiano colloquiale, asciutto, niente emoji, niente elenchi puntati."
+      : "You are an assistant who sums up the inbox in a few sentences. Plain English, no emoji, no bullet lists.";
 
   const system = withCustom(pickBase(defaultBase, input.basePrompt), input.customPrompt, lang);
 
   const user =
     lang === "it"
-      ? `Ecco le mail più recenti dell'inbox:
+      ? `Ecco le ${input.mail.length} mail più recenti:
 
 ${list}
 
-Fammi un riassunto organizzato per priorità. Restituisci ESATTAMENTE questo formato Markdown, senza testo aggiuntivo prima o dopo:
-
-## Urgenti
-(le mail che richiedono attenzione oggi: scadenze, richieste dirette, lavoro/famiglia critico. Se non ce ne sono scrivi "—".)
-- mittente — oggetto — perché è urgente in 1 frase
-
-## Importanti
-(rilevanti ma non urgenti: aggiornamenti significativi, follow-up, risposte attese)
-- mittente — oggetto — perché in 1 frase
-
-## Informative
-(newsletter di valore, notifiche utili)
-- mittente — oggetto — di che si tratta
-
-## Da ignorare
-(promo, social, rumore: solo il conteggio, non elencarle)
-- N mail trascurabili
-
-Sii spietato nella categorizzazione: la maggior parte delle mail va in "Informative" o "Da ignorare". In "Urgenti" metti solo cose davvero urgenti.`
-      : `Here are the most recent inbox emails:
+Fammi un riassunto complessivo in 3-5 frasi di prosa. Apri dicendo se c'è qualcosa di davvero urgente o se l'inbox è tranquilla, poi accenna ai temi/mittenti principali (es. "diverse newsletter da X e Y", "una richiesta da Mario su Z"), e chiudi con un'eventuale azione consigliata. Niente elenchi, niente bullet, niente intestazioni: solo prosa scorrevole.`
+      : `Here are the ${input.mail.length} most recent emails:
 
 ${list}
 
-Give me a priority-organized summary. Return EXACTLY this Markdown format, no extra text:
-
-## Urgent
-- sender — subject — why urgent in 1 line
-
-## Important
-- sender — subject — why in 1 line
-
-## Informational
-- sender — subject — what it is
-
-## Ignore
-- N negligible emails
-
-Be ruthless: most mail belongs in Informational or Ignore.`;
+Give me one overall summary in 3-5 sentences of prose. Open by saying whether anything is truly urgent or the inbox is quiet, then mention the main themes/senders, then close with a suggested action if any. No lists, no bullets, no headings — just flowing prose.`;
 
   return { system, user };
 }

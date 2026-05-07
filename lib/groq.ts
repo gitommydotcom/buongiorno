@@ -25,3 +25,25 @@ export async function complete(systemPrompt: string, userPrompt: string, opts?: 
   });
   return res.choices[0]?.message?.content?.trim() ?? "";
 }
+
+export async function* completeStream(
+  systemPrompt: string,
+  userPrompt: string,
+  opts?: { maxTokens?: number; temperature?: number },
+): AsyncGenerator<string, void, void> {
+  const stream = await groq().chat.completions.create({
+    model: MODEL,
+    temperature: opts?.temperature ?? 0.6,
+    max_tokens: opts?.maxTokens ?? 500,
+    stream: true,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+  });
+  for await (const chunk of stream) {
+    const piece = chunk.choices[0]?.delta?.content;
+    if (piece) yield piece;
+  }
+}
+

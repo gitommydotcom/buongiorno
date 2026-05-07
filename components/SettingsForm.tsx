@@ -295,9 +295,6 @@ const ADD_HINTS = {
 - "Sii diretto, niente convenevoli."
 - "Apri sempre con la cosa più importante."
 - "Considera che alle 9 mi alleno: tienine conto."`,
-  week: `Esempi:
-- "Evidenzia i giorni più carichi e quelli più liberi."
-- "Quando vedi un viaggio, suggerisci cosa preparare."`,
   news: `Esempi:
 - "Privilegia politica/economia, niente cronaca nera."
 - "Massimo 3 notizie."
@@ -310,30 +307,25 @@ const ADD_HINTS = {
 const BASE_HINTS = {
   day:
     'Sostituisci interamente le istruzioni di sistema. Esempio: "Sei un capo di stato maggiore. Frasi brevi, stile militare. Massimo 4 frasi, niente convenevoli."',
-  week:
-    'Sostituisci interamente le istruzioni per la settimana. Esempio: "Parla come un coach. Sguardo strategico, tono motivante."',
   news:
     'Sostituisci le istruzioni del riassunto news. Esempio: "Sei un analista geopolitico. Tono asciutto, contestualizza ogni notizia con un dato."',
   mail:
-    'Sostituisci le istruzioni del riassunto mail. Esempio: "Sei una segretaria pignola. Restituisci solo il formato Markdown richiesto."',
+    'Sostituisci le istruzioni del riassunto mail. Esempio: "Sei una segretaria pignola. Riassumi tutto in 3 frasi, niente elenchi."',
 };
 
-type PromptKey = "day" | "week" | "news" | "mail";
+type PromptKey = "day" | "news" | "mail";
 
 const PROMPT_LABELS: Record<PromptKey, string> = {
   day: "Giornata",
-  week: "Settimana",
   news: "News",
   mail: "Mail",
 };
 
 type PromptsState = {
   day: string;
-  week: string;
   news: string;
   mail: string;
   baseDay: string;
-  baseWeek: string;
   baseNews: string;
   baseMail: string;
 };
@@ -365,11 +357,9 @@ function PromptEditor({
   function applyAll() {
     onSave({
       day: local.day.trim(),
-      week: local.week.trim(),
       news: local.news.trim(),
       mail: local.mail.trim(),
       baseDay: local.baseDay.trim(),
-      baseWeek: local.baseWeek.trim(),
       baseNews: local.baseNews.trim(),
       baseMail: local.baseMail.trim(),
     });
@@ -386,7 +376,7 @@ function PromptEditor({
         Istruzioni per l&apos;AI
       </div>
       <p className="mb-3 text-xs text-muted">
-        Personalizza come l&apos;AI ti racconta giornata, settimana, news e mail.
+        Personalizza come l&apos;AI ti racconta giornata, news e mail.
         L&apos;AI continua a vedere tutti i tuoi dati: cambi solo tono, focus e formato.
       </p>
 

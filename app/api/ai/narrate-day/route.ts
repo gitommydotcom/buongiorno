@@ -1,14 +1,12 @@
-import { NextResponse } from "next/server";
 import { fetchEvents, fetchReminders } from "@/lib/caldav";
 import { fetchInbox } from "@/lib/gmail";
 import { fetchTraffic } from "@/lib/traffic";
 import { fetchWeather } from "@/lib/weather";
 import { fetchNews } from "@/lib/news";
 import { getSettings } from "@/lib/settings";
-import { startOfDay, addDays } from "@/lib/utils";
+import { startOfDay, addDays, withTimeout } from "@/lib/utils";
 import { dayNarrationPrompt } from "@/lib/prompts";
-import { complete } from "@/lib/groq";
-import { cached } from "@/lib/cache";
+import { completeStream } from "@/lib/groq";
 
 export const dynamic = "force-dynamic";
 
@@ -20,13 +18,15 @@ export async function GET() {
     const start = startOfDay(now, s.location.timezone);
     const end = addDays(start, 1);
 
+    // Per-source timeouts so the slowest integration can't block the whole brief.
+    // Total worst case ≈ 6s before AI starts streaming.
     const [events, reminders, weather, traffic, mail, news] = await Promise.all([
-      fetchEvents(start, end, s.location.timezone).catch(() => []),
-      fetchReminders(s.location.timezone).catch(() => []),
-      fetchWeather(s.location.lat, s.location.lon, s.location.name, s.location.timezone).catch(() => null),
-      fetchTraffic(s.location.lat, s.location.lon).catch(() => []),
-      fetchInbox(20).catch(() => []),
-      fetchNews(s.feeds).catch(() => ({ local: [], italy: [], global: [] })),
+      withTimeout(fetchEvents(start, end, s.location.timezone), 6000, []),
+      withTimeout(fetchReminders(s.location.timezone), 6000, []),
+      withTimeout(fetchWeather(s.location.lat, s.location.lon, s.location.name, s.location.timezone), 4000, null),
+      withTimeout(fetchTraffic(s.location.lat, s.location.lon), 3000, []),
+      withTimeout(fetchInbox(20), 4000, []),
+      withTimeout(fetchNews(s.feeds), 5000, { local: [], italy: [], global: [] }),
     ]);
 
     const importantMail = mail.filter((m) => m.important || m.starred || m.unread).slice(0, 6);
@@ -52,21 +52,32 @@ export async function GET() {
       basePrompt: s.aiPrompts?.baseDay,
     });
 
-    const inputHash = JSON.stringify({
-      e: events.map((e) => e.uid + e.start),
-      r: reminders.map((r) => r.uid + (r.due ?? "")),
-      w: weather?.current.observedAt,
-      t: traffic.length,
-      m: importantMail.map((m) => m.id),
-      n: newsHeadlines.map((h) => h.title).slice(0, 5).join("|"),
-      d: start.toISOString(),
-      p: s.aiPrompts?.day ?? "",
-      bp: s.aiPrompts?.baseDay ?? "",
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const piece of completeStream(system, user, { maxTokens: 500 })) {
+            controller.enqueue(encoder.encode(piece));
+          }
+        } catch (err) {
+          controller.enqueue(encoder.encode(`\n\n[errore AI: ${(err as Error).message}]`));
+        } finally {
+          controller.close();
+        }
+      },
     });
-    const text = await cached(`narration:day:${inputHash}`, 10 * 60, () => complete(system, user, { maxTokens: 700 }));
 
-    return NextResponse.json({ text, generatedAt: new Date().toISOString() });
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "X-Accel-Buffering": "no",
+      },
+    });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return new Response(`errore: ${(e as Error).message}`, {
+      status: 500,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
   }
 }

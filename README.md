@@ -2,8 +2,7 @@
 
 Dashboard quotidiana personale che unisce **Apple Calendar**, **Apple Promemoria**, **Gmail**, **meteo**, **traffico** e **notizie** in una sola schermata, con narrazione AI della giornata. Mobile-first, installabile come app dalla home dell'iPhone.
 
-- **Focus principale:** la giornata di oggi (timeline, meteo, mail, news, traffico)
-- **Focus secondario:** la settimana in arrivo
+- **Focus:** la giornata di oggi (timeline, meteo, mail, news, traffico)
 - **Privata:** single-user, dietro password, deployata sul tuo Netlify
 - **AI:** Groq (Llama 3.3 70B), gratis
 - **Niente sport:** mai, in nessuna sezione news
@@ -171,20 +170,19 @@ Default forniti:
 ## Architettura veloce
 
 - `app/page.tsx` — pagina Oggi (focus principale)
-- `app/settimana/page.tsx` — focus secondario
 - `app/impostazioni/page.tsx` — luogo, lingua, RSS, **istruzioni AI personalizzate**
 - `app/api/*` — route server-side (CalDAV, Gmail, news, meteo, traffico, AI)
 - `lib/*` — client per ogni integrazione, cache LRU in-memory, prompts AI
 
-L'AI viene chiamata **server-side** e riceve **tutti** i tuoi dati (calendario, promemoria, meteo, traffico, mail importanti, titoli delle notizie del momento) per produrre la narrazione della giornata. Stessa cosa per la settimana.
+L'AI viene chiamata **server-side** e riceve **tutti** i tuoi dati (calendario, promemoria, meteo, traffico, mail importanti, titoli delle notizie del momento) per produrre la narrazione della giornata.
 
 ### Personalizzare il prompt AI
 
 In `/impostazioni` → **"Istruzioni per l'AI"** puoi aggiungere indicazioni libere a tre prompt distinti:
 
 - **Giornata** (briefing della pagina Oggi)
-- **Settimana** (sintesi pagina Settimana)
 - **News** (riassunto narrato delle notizie)
+- **Mail** (riassunto inbox)
 
 Le tue istruzioni vengono **integrate** alle istruzioni di default e hanno priorità (es. "sii diretto, niente convenevoli", "considera che alle 9 mi alleno", "tono ironico", "massimo 3 frasi"). L'AI continua a vedere tutti i tuoi dati: il prompt personalizzato cambia solo il tono e il focus, non quello che l'AI sa di te.
 

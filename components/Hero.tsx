@@ -1,31 +1,65 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sparkles, RefreshCw, Loader2 } from "lucide-react";
 
 export function Hero() {
   const [text, setText] = useState<string>("");
-  const [loading, setLoading] = useState(true);
+  const [streaming, setStreaming] = useState(false);
+  const [waiting, setWaiting] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   async function load(force = false) {
-    setLoading(true);
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setError(null);
+    setText("");
+    setWaiting(true);
+    setStreaming(false);
+
     try {
       if (force) await fetch("/api/refresh", { method: "POST" });
-      const res = await fetch("/api/ai/narrate-day", { cache: "no-store" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "errore");
-      setText(data.text);
+      const res = await fetch("/api/ai/narrate-day", {
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      if (!res.ok || !res.body) {
+        const msg = await res.text().catch(() => "");
+        throw new Error(msg || `errore ${res.status}`);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let received = "";
+      let firstChunk = true;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (firstChunk) {
+          setWaiting(false);
+          setStreaming(true);
+          firstChunk = false;
+        }
+        received += decoder.decode(value, { stream: true });
+        setText(received);
+      }
+      setStreaming(false);
+      setWaiting(false);
     } catch (e) {
+      if ((e as Error).name === "AbortError") return;
       setError((e as Error).message);
-    } finally {
-      setLoading(false);
+      setWaiting(false);
+      setStreaming(false);
     }
   }
 
   useEffect(() => {
     load();
+    return () => abortRef.current?.abort();
   }, []);
+
+  const busy = waiting || streaming;
 
   return (
     <section className="mb-6 animate-fade-in">
@@ -35,20 +69,25 @@ export function Hero() {
           <span>il punto della giornata</span>
           <button
             onClick={() => load(true)}
-            className="tap ml-auto rounded-full p-1 text-muted hover:text-fg"
+            className="tap ml-auto rounded-full p-1 text-muted hover:text-fg disabled:opacity-50"
             aria-label="Rigenera"
-            disabled={loading}
+            disabled={busy}
           >
-            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            <RefreshCw size={14} className={busy ? "animate-spin" : ""} />
           </button>
         </div>
-        {loading && !text && <HeroLoader />}
+        {waiting && !text && <HeroLoader />}
         {error && (
           <p className="text-sm text-danger">
             {error}. Controlla che <code>GROQ_API_KEY</code>, <code>ICLOUD_*</code> e <code>GOOGLE_*</code> siano configurati.
           </p>
         )}
-        {!error && text && <p className="narration whitespace-pre-line">{text}</p>}
+        {!error && text && (
+          <p className="narration whitespace-pre-line">
+            {text}
+            {streaming && <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-accent align-middle" />}
+          </p>
+        )}
       </div>
     </section>
   );
@@ -66,7 +105,6 @@ function HeroLoader() {
         <div className="h-3 w-[78%] animate-pulse rounded-full bg-fg/15 [animation-delay:120ms]" />
         <div className="h-3 w-[88%] animate-pulse rounded-full bg-fg/15 [animation-delay:240ms]" />
         <div className="h-3 w-[64%] animate-pulse rounded-full bg-fg/15 [animation-delay:360ms]" />
-        <div className="h-3 w-[82%] animate-pulse rounded-full bg-fg/15 [animation-delay:480ms]" />
       </div>
     </div>
   );
